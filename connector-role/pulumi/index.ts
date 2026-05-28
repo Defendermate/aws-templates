@@ -2,16 +2,29 @@
  * Defendermate cross-account read-only IAM role.
  *
  * Creates:
- *   - aws.iam.Role               (trust policy: DM platform account +
- *                                 External ID + aws:PrincipalArn pattern)
+ *   - aws.iam.Role               (trust policy: DM platform account
+ *                                 + External ID)
  *   - aws.iam.Policy             (read-only inventory + describe)
  *   - aws.iam.Policy             (reachability — SSM + ECS Exec)
  *   - aws.iam.RolePolicyAttachment (one per policy)
  *
+ * Trust policy note: an aws:PrincipalArn defense-in-depth condition is
+ * intentionally omitted for v1. ExternalId is the primary guard;
+ * PrincipalArn will be re-added in v2 once dm-core has a stable
+ * `dm-core-platform` service role identity.
+ *
  * Policies are inlined (matching ../../connector/pulumi/index.ts convention)
  * so this file is self-contained for `pulumi up` from any local copy. The
- * canonical permission list lives in ../../connector/readOnlyPolicy.json and
- * reachabilityPolicy.json — keep in sync when updating either.
+ * canonical permission list also lives in ../../connector/readOnlyPolicy.json
+ * and reachabilityPolicy.json — keep all copies in sync.
+ *
+ * Usage:
+ *   1. pulumi new aws-typescript --dir defendermate-role
+ *   2. cd defendermate-role && mv ~/Downloads/index.ts .
+ *   3. Edit the externalId and defenderMateAccountId constants below.
+ *   4. pulumi up
+ *   5. Copy the roleArn export into the Defendermate wizard.
+ *   6. To tear down: pulumi destroy
  */
 import * as aws from "@pulumi/aws";
 
@@ -22,8 +35,18 @@ const externalId = "<paste the value from the wizard>"; // change me — paste t
 // AWS account. Read the value from the wizard's "Defendermate Account ID" panel
 // for the tenant you're connecting.
 const defenderMateAccountId = "<see Defendermate Account ID in the wizard>"; // change me
-const principalArnPattern = "role/dm-core-*";
 const iamPath = "/";
+
+// Fail fast if the customer forgot to edit the placeholders. Without this
+// guard, Pulumi tries to create the role with a literal "<see Defendermate
+// Account ID...>" string and AWS rejects it mid-deploy, leaving the
+// policies created but the role failed — messy partial state.
+if (externalId.startsWith("<") || defenderMateAccountId.startsWith("<")) {
+  throw new Error(
+    "Edit the externalId and defenderMateAccountId constants at the top of index.ts before running `pulumi up`. " +
+      "Both values are shown in the Defendermate provider wizard's setup panel.",
+  );
+}
 
 // --- policy documents ---
 const readOnlyPolicy = {
@@ -241,9 +264,6 @@ const trustPolicy = {
       Condition: {
         StringEquals: {
           "sts:ExternalId": externalId,
-        },
-        StringLike: {
-          "aws:PrincipalArn": `arn:aws:iam::${defenderMateAccountId}:${principalArnPattern}`,
         },
       },
     },

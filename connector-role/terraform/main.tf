@@ -2,11 +2,15 @@
 # Defendermate cross-account read-only IAM role.
 #
 # Creates:
-#   - aws_iam_role          (trust policy: DM platform account + External ID
-#                            + aws:PrincipalArn pattern)
+#   - aws_iam_role          (trust policy: DM platform account + External ID)
 #   - aws_iam_policy        (read-only inventory + describe)
 #   - aws_iam_policy        (reachability — SSM + ECS Exec)
 #   - aws_iam_role_policy_attachment (one per policy)
+#
+# Trust policy note: an aws:PrincipalArn defense-in-depth condition is
+# intentionally omitted for v1. ExternalId is the primary guard;
+# PrincipalArn will be re-added in v2 once dm-core has a stable
+# `dm-core-platform` service role identity.
 #
 # Policies are inlined (matching ../../connector/terraform/main.tf convention)
 # so this file is self-contained for `terraform apply` from any local copy.
@@ -21,6 +25,23 @@ terraform {
       version = ">= 5.0"
     }
   }
+}
+
+# Embedded provider config makes this file runnable standalone — the
+# expected usage from the Defendermate wizard. If you're importing this
+# as a module into a larger Terraform project, REMOVE this provider
+# block and configure the AWS provider at your root module instead
+# (provider blocks inside modules are deprecated). Credentials still
+# come from the standard chain (AWS_PROFILE / env vars / instance
+# profile / SSO).
+variable "aws_region" {
+  type        = string
+  description = "AWS region for the provider. The IAM role itself is global; the region just determines which endpoint Terraform talks to for STS/IAM API calls."
+  default     = "us-east-1"
+}
+
+provider "aws" {
+  region = var.aws_region
 }
 
 variable "role_name" {
@@ -48,12 +69,6 @@ variable "defendermate_account_id" {
   }
 }
 
-variable "principal_arn_pattern" {
-  type        = string
-  description = "Pattern matched against aws:PrincipalArn — restricts which DM-side IAM principals can AssumeRole."
-  default     = "role/dm-core-*"
-}
-
 variable "path" {
   type        = string
   description = "IAM path for the role and policies."
@@ -77,12 +92,6 @@ data "aws_iam_policy_document" "trust" {
       test     = "StringEquals"
       variable = "sts:ExternalId"
       values   = [var.external_id]
-    }
-
-    condition {
-      test     = "StringLike"
-      variable = "aws:PrincipalArn"
-      values   = ["arn:${data.aws_partition.current.partition}:iam::${var.defendermate_account_id}:${var.principal_arn_pattern}"]
     }
   }
 }

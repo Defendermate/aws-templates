@@ -26,7 +26,7 @@ All three templates produce the same trust policy:
 
 The per-connection `ExternalId` is the primary confused-deputy guard. We
 deliberately omit an additional `aws:PrincipalArn` condition (which would
-restrict _which_ IAM principal inside the Defendermate account may
+restrict *which* IAM principal inside the Defendermate account may
 AssumeRole) for v1. It would require customers to know Defendermate's
 internal IAM topology, which differs between on-prem static-keys
 (`user/dm-core-*`) and SaaS workload-identity (`role/dm-core-*`)
@@ -49,11 +49,11 @@ trust policy re-adds:
 The wizard displays the correct account ID for the tenant you're connecting,
 but for reference:
 
-| Environment               | Defendermate AWS account |
-| ------------------------- | ------------------------ |
-| dev (`dmate-dev`)         | `304321522536`           |
-| staging (`dmate-staging`) | `063688338769`           |
-| prod (`dmate-prod`)       | `092671054851`           |
+| Environment | Defendermate AWS account |
+|---|---|
+| dev (`dmate-dev`) | `304321522536` |
+| staging (`dmate-staging`) | `063688338769` |
+| prod (`dmate-prod`) | `092671054851` |
 
 There is intentionally no default value baked into the templates — a
 prod-tenant customer who downloaded a dev-defaulted template and ran it
